@@ -1,27 +1,22 @@
 # HPAI Korea Outbreak Map
 
-Single-file HTML tools that visualize Korean HPAI (Highly Pathogenic Avian
+A single-file HTML tool that visualizes Korean HPAI (Highly Pathogenic Avian
 Influenza) case data on an interactive map, entirely in the browser. No
 server or build step — open the `.html` file directly, or serve it as a
 static file. No data ever leaves the browser.
 
-## Tools
+## Tool
 
-- **`HPAI_korea_publication_map.html`** — simplified, publication-friendly
-  map. Minimal controls, choice of colorblind-safe (Okabe-Ito) or
-  high-contrast palette, clean basemap. Records with no genotype value
-  (blank, `N/A`, `n.a.`, `unknown`, etc.) are hidden from the map by default
-  — toggle "Hide records with no genotype data" to show them. Class and
-  subtype checkbox filters (auto-populated from whatever values are in the
-  loaded data, with "All"/"None" shortcuts) let you show only defined
-  categories. Intended for figures in reports/papers. Sample data:
-  `hpai_korea_publication_sample.csv`.
-- **`HPAI_korea_template_v13_offline.html`** — full-featured exploratory
-  dashboard (seasons, stacked bar chart, multiple palettes/basemaps, per-class
-  size/opacity controls, jitter). See
-  `HPAI_korea_template_v12_explanation.txt` for details.
+**`HPAI_korea_publication_map.html`** — simplified, publication-friendly map.
+Minimal controls, choice of colorblind-safe (Okabe-Ito) or high-contrast
+palette, clean basemap. Records with no genotype value (blank, `N/A`,
+`n.a.`, `unknown`, etc.) are hidden from the map by default — toggle "Hide
+records with no genotype data" to show them. Class and subtype checkbox
+filters (auto-populated from whatever values are in the loaded data, with
+"All"/"None" shortcuts) let you show only defined categories. Intended for
+figures in reports/papers. Sample data: `hpai_korea_publication_sample.csv`.
 
-## CSV schema (publication map)
+## CSV schema
 
 | column      | meaning                                   | example values                  |
 |-------------|--------------------------------------------|----------------------------------|
