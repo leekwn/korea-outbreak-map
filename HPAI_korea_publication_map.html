@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>HPAI Korea — Publication Map</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root{
+    --bg:#f7f8fa; --card:#ffffff; --text:#1f2d3d; --muted:#6b7a8c;
+    --accent:#2563eb; --border:#e5e9ef;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+  header{padding:16px 24px 10px;background:linear-gradient(135deg,#0f172a,#1e293b);color:#fff}
+  header h1{margin:0 0 4px;font-size:19px;font-weight:600}
+  header p{margin:2px 0;color:#cbd5e1;font-size:12.5px}
+  .wrap{max-width:1200px;margin:0 auto;padding:16px 20px 32px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;box-shadow:0 1px 2px rgba(15,23,42,.04);margin-bottom:14px}
+  .card h2{margin:0 0 8px;font-size:14px;font-weight:600}
+  .note{color:var(--muted);font-size:12.5px;margin:0 0 10px}
+  #map{height:70vh;min-height:480px;border-radius:8px;border:1px solid var(--border);background:#eef3f8}
+  .map-wrap{position:relative}
+  #mapFsBtn,#mapFitBtn{position:absolute;z-index:1000;background:rgba(255,255,255,.93);border:1px solid #94a3b8;border-radius:6px;padding:3px 9px;cursor:pointer;font-size:12px;font-weight:600;line-height:1.6;box-shadow:0 1px 4px rgba(0,0,0,.18);top:8px}
+  #mapFsBtn{left:8px}
+  #mapFitBtn{left:110px}
+  #mapFsBtn:hover,#mapFitBtn:hover{background:#f1f5f9}
+  body.map-fullscreen .map-wrap{position:fixed;inset:0;z-index:9999;background:#1e293b}
+  body.map-fullscreen #map{height:100vh!important;min-height:unset!important;border-radius:0!important;border:none!important}
+  body.map-fullscreen #mapFsBtn{top:10px;left:10px}
+  body.map-fullscreen #mapFitBtn{top:10px;left:112px}
+  .controls{display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center;margin:6px 0 10px}
+  .controls > div{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+  .controls label{font-size:13px;color:#334155}
+  .controls input[type=checkbox]{margin:0 4px 0 0}
+  .controls input[type=range]{width:110px}
+  .ctl-title{font-weight:600;color:#475569;margin-right:6px;font-size:13px}
+  #status{font-size:13px;color:var(--muted);min-height:18px}
+  .stat-pills{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+  .pill{background:#eff6ff;color:#1d4ed8;border-radius:14px;padding:3px 10px;font-size:12px;font-weight:600}
+  .pill.gray{background:#f1f5f9;color:#475569}
+  .leaflet-popup-content{font-size:12px;line-height:1.45}
+  .leaflet-popup-content b{font-weight:600}
+  table.schema{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.schema th,table.schema td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--border)}
+  table.schema th{background:#f3f5f9;color:#475569;font-weight:600}
+  select,input[type=text],input[type=file],input[type=date]{font:inherit;padding:5px 9px;border:1px solid var(--border);border-radius:5px;background:#fff;font-size:13px}
+  .legend-box{background:#fff;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;max-width:340px}
+  .legend-row{display:flex;align-items:center;gap:6px;margin:2px 0}
+  .legend-swatch{width:12px;height:12px;border-radius:50%;display:inline-block;flex:0 0 auto}
+  .hpai-tri{background:transparent;border:none}
+  details summary{cursor:pointer;font-weight:600;color:#475569}
+  .small{font-size:12px;color:var(--muted)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px}
+  @media(max-width:800px){.grid2{grid-template-columns:1fr}}
+  .filter-group{background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12.5px;max-height:140px;overflow:auto}
+  .linklike{background:none;border:none;padding:0;color:var(--accent);font-size:12px;cursor:pointer;text-decoration:underline}
+</style>
+</head>
+<body>
+<header>
+  <h1>HPAI Korea — Publication Map</h1>
+  <p>Load a CSV of HPAI case records to render a clean, figure-ready outbreak map. All data stays in your browser — nothing is uploaded.</p>
+</header>
+
+<div class="wrap">
+
+<!-- Step 1: Load data -->
+<div class="card">
+  <h2>1. Load data</h2>
+  <p class="note">Choose a CSV file. Columns are auto-detected; use the mapping table below if a column isn't picked up correctly.</p>
+  <div class="controls">
+    <input type="file" id="csvFile" accept=".csv,.tsv,.txt">
+    <button id="loadSample" type="button" style="padding:5px 10px;border:1px solid var(--border);background:#fff;border-radius:5px;cursor:pointer">Load built-in sample data</button>
+    <span class="small">File: <span id="fileName">—</span> · Encoding: <select id="encSel"><option value="utf-8">UTF-8</option><option value="utf-16">UTF-16</option><option value="euc-kr">EUC-KR / CP949</option></select></span>
+  </div>
+  <div id="status"></div>
+  <div id="dropZone" style="margin-top:10px;border:2px dashed #94a3b8;border-radius:8px;padding:14px;text-align:center;background:#f8fafc;cursor:pointer">
+    <div style="font-weight:600;color:#334155">⬇ Drag &amp; drop a CSV file here</div>
+    <div class="small" style="margin-top:4px;color:#64748b">Use this if the file picker button doesn't work in your browser</div>
+  </div>
+  <details style="margin-top:10px;font-size:12px" id="pasteWrap">
+    <summary>Or paste CSV text directly</summary>
+    <textarea id="pasteArea" placeholder="First line: header (class,institute,date,species,sample,subtype,genotype,lat,lon)&#10;Following lines: data" style="width:100%;min-height:120px;margin-top:8px;padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-family:Menlo,Consolas,monospace;font-size:11px"></textarea>
+    <button id="pasteBtn" type="button" style="margin-top:6px;padding:6px 14px;background:#2563eb;color:#fff;border:none;border-radius:5px;font-weight:600;cursor:pointer">Process text</button>
+  </details>
+</div>
+
+<!-- Step 2: Schema mapping -->
+<div class="card" id="schemaCard" style="display:none">
+  <h2>2. Column mapping (auto-detected — edit if needed)</h2>
+  <p class="note">These 9 fields are mapped from your CSV columns. English and Korean header names are both recognized automatically.</p>
+  <table class="schema" id="schemaTable"></table>
+  <div style="margin-top:8px"><button id="applyMap" type="button" style="padding:6px 14px;background:#2563eb;color:#fff;border:none;border-radius:5px;font-weight:600;cursor:pointer">Apply mapping → draw map</button></div>
+</div>
+
+<!-- Step 3: Map -->
+<div class="card" id="mapCard" style="display:none">
+  <h2>3. Outbreak map</h2>
+  <div class="controls">
+    <div>
+      <span class="ctl-title">Date range</span>
+      <label>From&nbsp;<input type="date" id="dateFrom"></label>
+      <label>To&nbsp;<input type="date" id="dateTo"></label>
+    </div>
+    <div>
+      <span class="ctl-title">Color by</span>
+      <select id="colorBy">
+        <option value="class1">Class (poultry / wild bird)</option>
+        <option value="institute">Institute (APQA / NIWDC)</option>
+        <option value="species" selected>Species</option>
+        <option value="subtype">Subtype (H5N1 etc.)</option>
+        <option value="genotype">Genotype</option>
+      </select>
+    </div>
+    <div>
+      <span class="ctl-title">Marker size</span>
+      <input type="range" id="markerSize" min="3" max="16" step="1" value="7">
+      <span id="markerSizeLbl">7</span>
+    </div>
+    <div>
+      <span class="ctl-title">Opacity</span>
+      <input type="range" id="markerOpacity" min="10" max="100" step="5" value="70">
+      <span id="markerOpacityLbl">70%</span>
+    </div>
+    <div>
+      <span class="ctl-title">Overlap spread</span>
+      <input type="range" id="jitter" min="0" max="15" step="1" value="2">
+      <span id="jitterLbl">2 km</span>
+    </div>
+    <div>
+      <span class="ctl-title">Palette</span>
+      <select id="paletteSelect">
+        <option value="okabe" selected>Colorblind-safe (Okabe-Ito)</option>
+        <option value="hc">High contrast</option>
+      </select>
+    </div>
+    <div>
+      <label><input type="checkbox" id="hideNoGenotype" checked> Hide records with no genotype data</label>
+    </div>
+    <div>
+      <span class="ctl-title">Basemap</span>
+      <select id="basemapSelect">
+        <option value="positron" selected>Light (Positron)</option>
+        <option value="voyager">Voyager</option>
+        <option value="nolabels">Light, no labels</option>
+      </select>
+    </div>
+  </div>
+  <div class="grid2" style="margin-bottom:10px">
+    <div>
+      <span class="ctl-title">Class filter</span>
+      <div class="filter-group" id="classChecks"></div>
+    </div>
+    <div>
+      <span class="ctl-title">Subtype filter</span>
+      <div class="filter-group" id="subtypeChecks"></div>
+    </div>
+  </div>
+  <div class="stat-pills" id="stats"></div>
+  <div class="map-wrap">
+    <button id="mapFsBtn" title="Toggle fullscreen">⛶ Fullscreen</button>
+    <button id="mapFitBtn" title="Fit to Korea">🗺 Fit to Korea</button>
+    <div id="map"></div>
+  </div>
+  <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;align-items:flex-start">
+    <div class="legend-box" id="legendBox"></div>
+    <p class="small" style="flex:1;min-width:220px;margin:0">
+      Poultry cases are drawn as circles, wild bird cases as triangles. Color encodes the field chosen above.
+      Records sharing the same coordinates are spread slightly apart ("overlap spread") so all points remain visible.
+    </p>
+  </div>
+</div>
+
+<details class="card">
+  <summary>Supported column names (English / Korean auto-detected)</summary>
+  <table class="schema" style="margin-top:10px">
+    <thead><tr><th>Field</th><th>English</th><th>Korean</th></tr></thead>
+    <tbody>
+      <tr><td>class</td><td>class, class1, type, category, host_type</td><td>분류, 야생가금, 야생/가금, 구분</td></tr>
+      <tr><td>institute</td><td>institute, agency, lab, source</td><td>기관, 검출기관, 진단기관, 실험실</td></tr>
+      <tr><td>date</td><td>date, sample_date, collected, collection_date</td><td>채취일, 시료채취일, 일자</td></tr>
+      <tr><td>species</td><td>species, animal, host</td><td>축종, 종, 동물종</td></tr>
+      <tr><td>sample</td><td>sample, sample_type, specimen</td><td>시료, 시료종류, 검체</td></tr>
+      <tr><td>subtype</td><td>subtype, serotype, strain</td><td>혈청형, 아형</td></tr>
+      <tr><td>genotype</td><td>genotype, clade, genogroup</td><td>유전형, 계통, 클레이드</td></tr>
+      <tr><td>lat</td><td>lat, latitude, y</td><td>위도</td></tr>
+      <tr><td>lon</td><td>lon, lng, longitude, x</td><td>경도</td></tr>
+    </tbody>
+  </table>
+</details>
+
+</div>
+
+<script>
+// ============== Tiny CSV parser (handles quoted fields, comma/tab) ==============
+function parseCSV(text){
+  if(text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const firstLine = text.split(/\r?\n/, 1)[0] || '';
+  const delim = (firstLine.split('\t').length > firstLine.split(',').length) ? '\t' : ',';
+  const rows = [];
+  let i = 0, field = '', row = [], inQ = false;
+  const N = text.length;
+  while(i < N){
+    const c = text[i];
+    if(inQ){
+      if(c === '"'){
+        if(text[i+1] === '"'){ field += '"'; i += 2; continue; }
+        inQ = false; i++; continue;
+      }
+      field += c; i++; continue;
+    } else {
+      if(c === '"'){ inQ = true; i++; continue; }
+      if(c === delim){ row.push(field); field=''; i++; continue; }
+      if(c === '\r'){ i++; continue; }
+      if(c === '\n'){ row.push(field); rows.push(row); row=[]; field=''; i++; continue; }
+      field += c; i++; continue;
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  if(!rows.length) return {headers:[], rows:[]};
+  const headers = rows[0].map(h=>h.trim());
+  const data = rows.slice(1).filter(r=>r.length===headers.length || (r.length===1 && r[0]==='')).filter(r=>!(r.length===1 && r[0]===''));
+  return {headers, rows:data};
+}
+
+// ============== Column auto-detection (English + Korean variants) ==============
+const COL_PATTERNS = {
+  class1:    [/^class$/i, /^class.?1$/i, /^type$/i, /^category$/i, /host.*type/i, /분류/, /야생.*가금/, /가금.*야생/, /구분/],
+  institute: [/^institute$/i, /^agency$/i, /^lab$/i, /^source$/i, /detect.*by/i, /기관/, /실험실/],
+  date:      [/^date$/i, /sample.*date/i, /collect.*date/i, /collection/i, /confirm/i, /채취일/, /시료채취/, /발생일/, /일자/, /확진/],
+  species:   [/^species$/i, /^animal$/i, /^host$/i, /축종/, /^종$/, /동물종/],
+  sample:    [/^sample$/i, /sample.*type/i, /^specimen$/i, /시료/, /검체/],
+  subtype:   [/^subtype$/i, /^serotype$/i, /^strain$/i, /^h.?n.?$/i, /혈청형/, /아형/],
+  genotype:  [/^genotype$/i, /^clade$/i, /^genogroup$/i, /유전형/, /계통/, /클레이드/],
+  lat:       [/^lat$/i, /^latitude$/i, /^y$/i, /위도/],
+  lon:       [/^lon$/i, /^lng$/i, /^longitude$/i, /^x$/i, /경도/],
+};
+function detectColumns(headers){
+  const map = {};
+  for(const [key, pats] of Object.entries(COL_PATTERNS)){
+    for(let i=0;i<headers.length;i++){
+      if(pats.some(p=>p.test(headers[i]))){ map[key] = headers[i]; break; }
+    }
+    if(!(key in map)) map[key] = '';
+  }
+  return map;
+}
+
+// ============== Helpers ==============
+function parseDate(s){
+  if(!s) return null;
+  s = String(s).trim();
+  let d = new Date(s);
+  if(!isNaN(d)) return d;
+  const m = s.match(/^(\d{1,2})[-/](\w{3})[-/](\d{2,4})$/);
+  if(m){
+    const months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+    let y = parseInt(m[3]); if(y<100) y += (y<70?2000:1900);
+    return new Date(y, months[m[2]], parseInt(m[1]));
+  }
+  const m2 = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if(m2) return new Date(+m2[1], +m2[2]-1, +m2[3]);
+  return null;
+}
+function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h=(h^s.charCodeAt(i))*16777619;}return h>>>0;}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+const KM_PER_DEG_LAT = 111.0;
+const KM_PER_DEG_LON = lat => 111.0 * Math.cos(lat*Math.PI/180);
+
+const PALETTES = {
+  // Okabe-Ito — designed to be distinguishable for all common types of color blindness
+  okabe: ['#e69f00','#56b4e9','#009e73','#f0e442','#0072b2','#d55e00','#cc79a7','#999999'],
+  // High contrast — more, more saturated hues; better when a field has many categories (e.g. genotype)
+  hc: ['#ff0000','#0057ff','#00b020','#ff7700','#9900cc','#00b8b8','#cc2200','#ff44cc',
+       '#88bb00','#005588','#a05010','#33dd88','#8855ff','#bbaa00','#ff88aa'],
+};
+let PALETTE = PALETTES.okabe;
+function colorFor(value, colorMap){
+  if(!colorMap.has(value)){
+    colorMap.set(value, PALETTE[colorMap.size % PALETTE.length]);
+  }
+  return colorMap.get(value);
+}
+// Recognizes common "not available" markers so missing genotype data can be excluded from the map
+function isMissingValue(v){
+  if(v == null) return true;
+  const s = String(v).trim().toLowerCase();
+  return s === '' || ['n.a', 'n.a.', 'na', 'n/a', 'unknown', 'none', '-', '--'].includes(s);
+}
+
+// ============== App state ==============
+const state = {
+  colMap: {},
+  records: [],
+  filters: {dateFrom:null, dateTo:null, hideNoGenotype:true, classSet:new Set(), subtypeSet:new Set()},
+  jitterKm: 2,
+  colorBy: 'species',
+  colorMap: new Map(),
+  markerRadius: 7,
+  markerOpacity: 0.7,
+  map: null,
+  layer: null,
+};
+
+function diag(msg){ console.log('[HPAI]', msg); }
+window.addEventListener('error', e=>diag('window.error: '+(e.message||e)));
+
+// ============== UI bootstrap ==============
+const status = document.getElementById('status');
+const csvFile = document.getElementById('csvFile');
+const encSel = document.getElementById('encSel');
+const fileNameEl = document.getElementById('fileName');
+
+// Embedded synthetic sample data (fictional) so the tool can be previewed offline / on file:// URLs.
+const SAMPLE_CSV = `class,institute,date,species,sample,subtype,genotype,lat,lon
+Wild bird,NIWDC,2023-07-31,Baikal Teal,Dead,H7N9,2.3.4.4b-G2,36.2854,127.1495
+Poultry,APQA,2023-09-21,Chicken,Dead,H5N6,2.3.4.4b-G2,37.107,126.198
+Poultry,APQA,2023-09-23,Duck,Dead,H5N1,2.3.4.4b-G4,36.8074,126.8462
+Poultry,APQA,2023-10-02,Goose,Dead,H5N6,2.3.4.4b-G3,37.3541,126.6432
+Wild bird,NIWDC,2023-10-11,Whooper Swan,Feces,H5N1,2.3.4.4b-G3,36.145,127.3732
+Wild bird,NIWDC,2023-10-19,Mandarin Duck,Feces,H5N6,2.3.4.4b-G1,36.298,127.3378
+Poultry,APQA,2023-10-23,Korean Native Chicken,Dead,H5N1,2.3.4.4b-G1,35.4292,128.44
+Poultry,APQA,2023-10-28,Chicken,Dead,H5N6,N/A,36.2584,127.1577
+Wild bird,NIWDC,2023-10-29,Spot-billed Duck,Feces,H5N1,2.3.4.4b-G1,35.3619,127.855
+Poultry,APQA,2023-11-19,Korean Native Chicken,Dead,H7N9,N/A,36.51,127.6902
+Wild bird,NIWDC,2023-11-27,Whooper Swan,Feces,H5N1,2.3.4.4b-G5,37.0823,127.5388
+Poultry,APQA,2023-12-03,Chicken,Dead,H5N6,2.3.4.4b-G2,35.1277,127.0505
+Poultry,APQA,2023-12-13,Chicken,Dead,H5N1,2.3.4.4b-G2,35.0141,128.9851
+Poultry,APQA,2023-12-25,Chicken,Dead,H5N1,2.3.4.4b-G4,33.2756,126.3218
+Poultry,APQA,2024-01-01,Chicken,Dead,H5N1,2.3.4.4b-G1,35.9924,128.8006
+Poultry,APQA,2024-01-06,Chicken,Dead,H5N1,2.3.4.4b-G3,35.6194,129.1509
+Wild bird,NIWDC,2024-01-08,Eurasian Wigeon,Live captured,H5N1,2.3.4.4b-G3,36.8231,126.5252
+Poultry,NIWDC,2024-01-14,Duck,Dead,H5N1,2.3.4.4b-G1,35.9754,127.9976
+Poultry,APQA,2024-01-19,Chicken,Dead,H5N1,2.3.4.4b-G4,35.6055,128.8626
+Wild bird,NIWDC,2024-01-22,Common Teal,Dead,H5N1,2.3.4.4b-G4,35.0838,126.9068
+Poultry,APQA,2024-01-27,Duck,Dead,H5N6,2.3.4.4b-G1,36.6884,126.8146
+Wild bird,APQA,2024-02-02,Mallard,Feces,H5N1,2.3.4.4b-G2,37.6721,128.0568
+Poultry,APQA,2024-02-10,Chicken,Dead,H5N1,2.3.4.4b-G3,36.2668,128.7519
+Wild bird,NIWDC,2024-02-14,Black-headed Gull,Live captured,H5N6,N/A,37.9226,127.9946
+Poultry,APQA,2024-02-19,Chicken,Dead,H5N1,2.3.4.4b-G2,37.5426,127.4732
+Poultry,APQA,2024-03-01,Chicken,Dead,H5N1,2.3.4.4b-G4,36.9075,128.6314
+Poultry,APQA,2024-03-08,Chicken,Dead,H5N6,2.3.4.4b-G3,35.0287,127.1381
+Wild bird,NIWDC,2024-03-15,Mandarin Duck,Feces,H5N8,2.3.4.4b-G3,35.5651,128.1663
+Poultry,APQA,2024-03-22,Chicken,Dead,H5N1,2.3.4.4b-G1,36.3401,126.9821
+Wild bird,NIWDC,2024-05-02,Spot-billed Duck,Feces,H5N1,2.3.4.4b-G5,35.5079,127.9314
+Poultry,APQA,2024-06-11,Chicken,Dead,H5N1,2.3.4.4b-G1,35.4166,128.3403
+Wild bird,NIWDC,2024-07-19,Mandarin Duck,Live captured,H5N6,2.3.4.4b-G2,35.4802,127.2101
+Poultry,APQA,2024-08-05,Chicken,Dead,H5N6,2.3.4.4b-G3,34.9481,126.7169
+Wild bird,NIWDC,2024-08-21,Baikal Teal,Feces,H5N1,2.3.4.4b-G1,35.4692,128.0146
+Poultry,APQA,2024-09-14,Duck,Dead,H5N6,2.3.4.4b-G4,35.0426,127.0759
+Poultry,APQA,2024-10-02,Chicken,Dead,H5N1,2.3.4.4b-G1,36.1401,128.5871
+Wild bird,NIWDC,2024-10-19,Whooper Swan,Dead,H5N1,2.3.4.4b-G2,37.4159,128.2178
+Poultry,APQA,2024-10-27,Chicken,Dead,H5N8,2.3.4.4b-G3,36.6392,126.4623
+Poultry,APQA,2024-11-05,Korean Native Chicken,Dead,H5N1,2.3.4.4b-G1,35.2374,128.8492
+Wild bird,NIWDC,2024-11-12,Mallard,Feces,H5N1,2.3.4.4b-G4,37.2896,126.2517
+Poultry,APQA,2024-11-18,Chicken,Dead,H5N1,2.3.4.4b-G2,36.3742,127.9146
+Poultry,APQA,2024-11-24,Duck,Dead,H5N6,2.3.4.4b-G1,35.5518,126.6614
+Wild bird,NIWDC,2024-11-29,Eurasian Wigeon,Feces,H5N1,2.3.4.4b-G3,36.4711,128.5726
+Poultry,APQA,2024-12-04,Chicken,Dead,H5N1,2.3.4.4b-G1,37.6249,127.0871
+Wild bird,NIWDC,2024-12-09,Spot-billed Duck,Dead,H5N1,2.3.4.4b-G2,35.6702,129.1746
+Poultry,APQA,2024-12-13,Chicken,Dead,H5N6,2.3.4.4b-G4,36.0179,127.6301
+Poultry,APQA,2024-12-17,Quail,Dead,H5N1,2.3.4.4b-G1,35.9391,128.6216
+Wild bird,NIWDC,2024-12-21,Whooper Swan,Live captured,H5N8,2.3.4.4b-G3,35.1958,126.6482
+Poultry,APQA,2024-12-27,Chicken,Dead,H5N1,2.3.4.4b-G2,36.7864,127.5766
+Poultry,APQA,2025-01-02,Chicken,Dead,H5N6,2.3.4.4b-G1,35.4548,128.6089
+Wild bird,NIWDC,2025-01-06,Mandarin Duck,Feces,H5N1,2.3.4.4b-G5,37.0511,127.0166
+Poultry,APQA,2025-01-11,Chicken,Dead,H5N1,2.3.4.4b-G2,36.2117,128.6472
+Poultry,APQA,2025-01-16,Duck,Dead,H5N1,2.3.4.4b-G1,34.985,127.2211
+Wild bird,NIWDC,2025-01-21,Baikal Teal,Feces,H5N1,2.3.4.4b-G3,35.9613,128.7742
+Poultry,APQA,2025-01-27,Chicken,Dead,H5N8,2.3.4.4b-G4,37.1971,127.7683
+Poultry,APQA,2025-02-03,Chicken,Dead,H5N1,2.3.4.4b-G1,36.5701,126.5817
+Wild bird,NIWDC,2025-02-08,Common Teal,Live captured,H5N1,2.3.4.4b-G2,35.4906,127.8992
+Poultry,APQA,2025-02-14,Korean Native Chicken,Dead,H5N1,2.3.4.4b-G3,36.3395,127.1084
+Poultry,APQA,2025-03-01,Chicken,Dead,H5N6,2.3.4.4b-G1,35.6231,128.3559
+Wild bird,NIWDC,2025-03-09,Mallard,Feces,H5N1,2.3.4.4b-G4,37.7891,128.0517
+Poultry,APQA,2025-03-18,Chicken,Dead,H5N1,2.3.4.4b-G2,36.9187,127.4443
+Poultry,APQA,2025-04-05,Duck,Dead,H5N6,2.3.4.4b-G1,35.0779,126.9631
+Wild bird,NIWDC,2025-04-20,Whooper Swan,Dead,H5N1,2.3.4.4b-G5,35.3067,128.1002
+Poultry,APQA,2025-05-11,Chicken,Dead,H5N1,2.3.4.4b-G1,34.9412,126.7902
+Poultry,APQA,2025-06-08,Goose,Dead,H5N1,2.3.4.4b-G2,35.5893,128.4881
+Wild bird,NIWDC,2025-07-14,Spot-billed Duck,Feces,H5N1,2.3.4.4b-G3,35.4137,127.0693
+Poultry,APQA,2025-08-22,Chicken,Dead,H5N6,2.3.4.4b-G1,36.4527,126.9312
+Wild bird,NIWDC,2025-09-30,Mandarin Duck,Feces,H5N1,2.3.4.4b-G2,37.5001,128.1852
+Poultry,APQA,2025-10-19,Chicken,Dead,H5N1,2.3.4.4b-G1,36.2841,127.0508
+Poultry,APQA,2025-11-08,Korean Native Chicken,Dead,H5N1,2.3.4.4b-G4,35.4726,128.9203
+Wild bird,NIWDC,2025-11-20,Eurasian Wigeon,Live captured,H5N6,2.3.4.4b-G3,37.6544,127.2481
+Poultry,APQA,2025-12-05,Chicken,Dead,H5N1,2.3.4.4b-G2,35.8841,128.5762
+Poultry,APQA,2026-01-14,Duck,Dead,H5N1,2.3.4.4b-G1,36.7509,126.7601`;
+
+function setStatus(msg, ok){
+  status.textContent = msg;
+  status.style.color = ok===false ? '#b91c1c' : (ok===true ? '#15803d' : '#6b7a8c');
+}
+
+function decodeBuffer(buf, enc){
+  try{
+    if(enc === 'utf-16') return new TextDecoder('utf-16').decode(buf);
+    if(enc === 'euc-kr') return new TextDecoder('euc-kr').decode(buf);
+    return new TextDecoder('utf-8').decode(buf);
+  }catch(e){
+    return new TextDecoder('utf-8').decode(buf);
+  }
+}
+
+function handleCSVText(text, label){
+  const {headers, rows} = parseCSV(text);
+  if(!headers.length){ setStatus('Could not parse any columns from the file.', false); return; }
+  state.rawHeaders = headers;
+  state.rawRows = rows;
+  state.colMap = detectColumns(headers);
+  fileNameEl.textContent = label || '(pasted text)';
+  setStatus(`Loaded ${rows.length} rows, ${headers.length} columns. Check the mapping below.`, true);
+  renderSchemaTable();
+  document.getElementById('schemaCard').style.display = '';
+}
+
+function renderSchemaTable(){
+  const fields = [
+    ['class1','Class (poultry / wild bird)'],
+    ['institute','Institute (APQA / NIWDC)'],
+    ['date','Date (sample collection)'],
+    ['species','Species'],
+    ['sample','Sample type (feces / dead / live captured)'],
+    ['subtype','Subtype'],
+    ['genotype','Genotype'],
+    ['lat','Latitude'],
+    ['lon','Longitude'],
+  ];
+  const table = document.getElementById('schemaTable');
+  let html = '<thead><tr><th>Field</th><th>Meaning</th><th>CSV column</th></tr></thead><tbody>';
+  fields.forEach(([key,label])=>{
+    html += `<tr><td><code>${key}</code></td><td>${label}</td><td>
+      <select data-field="${key}">
+        <option value="">— none —</option>
+        ${state.rawHeaders.map(h=>`<option value="${h}" ${state.colMap[key]===h?'selected':''}>${h}</option>`).join('')}
+      </select>
+    </td></tr>`;
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+}
+
+document.getElementById('applyMap').addEventListener('click', ()=>{
+  document.querySelectorAll('#schemaTable select[data-field]').forEach(sel=>{
+    state.colMap[sel.dataset.field] = sel.value;
+  });
+  buildRecords();
+});
+
+function buildRecords(){
+  const cm = state.colMap;
+  if(!cm.lat || !cm.lon){ setStatus('lat / lon columns must be mapped before drawing the map.', false); return; }
+  const latIdx = state.rawHeaders.indexOf(cm.lat);
+  const lonIdx = state.rawHeaders.indexOf(cm.lon);
+  const idx = key => cm[key] ? state.rawHeaders.indexOf(cm[key]) : -1;
+  const dIdx = idx('date'), c1Idx = idx('class1'), instIdx = idx('institute'),
+        spIdx = idx('species'), smIdx = idx('sample'), stIdx = idx('subtype'), gtIdx = idx('genotype');
+
+  const records = [];
+  let skipped = 0;
+  state.rawRows.forEach(r=>{
+    const lat = parseFloat(r[latIdx]), lon = parseFloat(r[lonIdx]);
+    if(isNaN(lat) || isNaN(lon)){ skipped++; return; }
+    const dateStr = dIdx>=0 ? r[dIdx] : '';
+    const date = parseDate(dateStr);
+    records.push({
+      lat, lon,
+      dateStr, date,
+      class1: c1Idx>=0 ? r[c1Idx] : '',
+      institute: instIdx>=0 ? r[instIdx] : '',
+      species: spIdx>=0 ? r[spIdx] : '',
+      sample: smIdx>=0 ? r[smIdx] : '',
+      subtype: stIdx>=0 ? r[stIdx] : '',
+      genotype: gtIdx>=0 ? r[gtIdx] : '',
+    });
+  });
+  state.records = records;
+  setStatus(`${records.length} mapped records ready (${skipped} skipped: missing/invalid lat-lon).`, true);
+  document.getElementById('mapCard').style.display = '';
+  initMapIfNeeded();
+  populateDateBounds();
+  renderFilterChecks();
+  render();
+}
+
+// ============== Class / subtype checkbox filters ==============
+// Checkboxes are (re)built from whatever values are actually present in the loaded data,
+// so they work regardless of the exact wording used (English, Korean, custom labels, etc).
+function renderFilterChecks(){
+  renderCheckGroup('classChecks', 'class1', state.filters.classSet);
+  renderCheckGroup('subtypeChecks', 'subtype', state.filters.subtypeSet);
+}
+function renderCheckGroup(containerId, field, selectedSet){
+  const values = Array.from(new Set(
+    state.records.map(r=>r[field]).filter(v=>v!=null && String(v).trim()!=='')
+  )).sort();
+  selectedSet.clear();
+  values.forEach(v=>selectedSet.add(v));
+
+  const el = document.getElementById(containerId);
+  if(!values.length){ el.innerHTML = '<span class="small">(no data in this column)</span>'; return; }
+
+  el.innerHTML = `
+    <button type="button" class="linklike" data-act="all">All</button> ·
+    <button type="button" class="linklike" data-act="none">None</button><br>
+    ${values.map(v=>`<label style="margin-right:10px;white-space:nowrap"><input type="checkbox" checked> ${escapeHtml(v)}</label>`).join('')}
+  `;
+  const checkboxes = Array.from(el.querySelectorAll('label input[type=checkbox]'));
+  checkboxes.forEach((cb, i)=>{
+    cb.addEventListener('change', ()=>{
+      if(cb.checked) selectedSet.add(values[i]); else selectedSet.delete(values[i]);
+      render();
+    });
+  });
+  el.querySelector('[data-act="all"]').addEventListener('click', ()=>{
+    selectedSet.clear(); values.forEach(v=>selectedSet.add(v));
+    checkboxes.forEach(cb=>cb.checked = true);
+    render();
+  });
+  el.querySelector('[data-act="none"]').addEventListener('click', ()=>{
+    selectedSet.clear();
+    checkboxes.forEach(cb=>cb.checked = false);
+    render();
+  });
+}
+
+function populateDateBounds(){
+  const dates = state.records.map(r=>r.date).filter(Boolean);
+  if(!dates.length) return;
+  const min = new Date(Math.min(...dates)), max = new Date(Math.max(...dates));
+  const fmt = d => d.toISOString().slice(0,10);
+  const fromEl = document.getElementById('dateFrom'), toEl = document.getElementById('dateTo');
+  if(!fromEl.value) fromEl.value = fmt(min);
+  if(!toEl.value) toEl.value = fmt(max);
+  state.filters.dateFrom = new Date(fromEl.value);
+  state.filters.dateTo = new Date(toEl.value);
+}
+
+// ============== Marker shape helpers ==============
+function isWildBird(rec){
+  if(!rec.class1) return false;
+  const v = String(rec.class1).toLowerCase();
+  return v.includes('wild') || v.includes('야생');
+}
+function makeTriangleMarker(lat, lon, radius, color, fillOpacity){
+  const d = Math.max(6, radius * 2.4);
+  const r = d / 2;
+  const html = `<svg width="${d}" height="${d}" viewBox="0 0 ${d} ${d}" style="display:block;overflow:visible">
+    <polygon points="${r},0.5 ${d-0.5},${d-0.5} 0.5,${d-0.5}"
+             fill="${color}" fill-opacity="${fillOpacity}" stroke="${color}" stroke-width="1" stroke-opacity="0.9"/>
+  </svg>`;
+  return L.marker([lat, lon], {
+    icon: L.divIcon({
+      html, iconSize:[d, d], iconAnchor:[r, d * 0.66], className:'hpai-tri', popupAnchor:[0, -r]
+    }),
+    keyboard:false, interactive:true,
+  });
+}
+function makeShapeMarker(lat, lon, color, rec){
+  if(isWildBird(rec)) return makeTriangleMarker(lat, lon, state.markerRadius, color, state.markerOpacity);
+  return L.circleMarker([lat, lon], {
+    radius: state.markerRadius, color, weight:1, opacity:0.9, fillColor:color, fillOpacity:state.markerOpacity
+  });
+}
+function jitterPoint(rec, idxInGroup){
+  const sigmaKm = state.jitterKm/2;
+  if(sigmaKm <= 0) return [rec.lat, rec.lon];
+  const seedKey = `${rec.dateStr}|${rec.species}|${rec.class1}|${idxInGroup}`;
+  const s1 = hashStr(seedKey + '|a'), s2 = hashStr(seedKey + '|b');
+  const u1 = ((s1 % 1000000)+1)/1000001, u2 = (s2 % 1000000)/1000000;
+  const r = sigmaKm * Math.sqrt(-2 * Math.log(u1));
+  const theta = 2 * Math.PI * u2;
+  const dLat = (r/KM_PER_DEG_LAT) * Math.sin(theta);
+  const dLon = (r/KM_PER_DEG_LON(rec.lat)) * Math.cos(theta);
+  return [rec.lat + dLat, rec.lon + dLon];
+}
+
+// ============== Basemaps ==============
+const BASEMAPS = {
+  positron: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {attribution:'&copy; OpenStreetMap &copy; CARTO', subdomains:'abcd', maxZoom:19}),
+  voyager:  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {attribution:'&copy; OpenStreetMap &copy; CARTO', subdomains:'abcd', maxZoom:19}),
+  nolabels: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {attribution:'&copy; OpenStreetMap &copy; CARTO', subdomains:'abcd', maxZoom:19}),
+};
+
+function initMapIfNeeded(){
+  if(state.map) return;
+  state.map = L.map('map', {layers:[BASEMAPS.positron]}).setView([36.3, 127.6], 7);
+  state.layer = L.layerGroup().addTo(state.map);
+  document.getElementById('basemapSelect').addEventListener('change', e=>{
+    Object.values(BASEMAPS).forEach(l=>state.map.removeLayer(l));
+    state.map.addLayer(BASEMAPS[e.target.value]);
+  });
+}
+
+function fitToKorea(){ if(state.map) state.map.setView([36.3, 127.6], 7); }
+
+function render(){
+  if(!state.layer) return;
+  state.layer.clearLayers();
+  state.colorMap = new Map();
+
+  const coordGroup = {};
+  state.records.forEach(r=>{
+    const k = r.lat.toFixed(4)+'|'+r.lon.toFixed(4);
+    (coordGroup[k] = coordGroup[k] || []).push(r);
+  });
+
+  let drawn = 0, poultryCount = 0, wildCount = 0, noGenotypeCount = 0;
+  const bounds = [];
+  Object.values(coordGroup).forEach(items=>{
+    items.forEach((r, i)=>{
+      if(state.filters.dateFrom && r.date && r.date < state.filters.dateFrom) return;
+      if(state.filters.dateTo && r.date && r.date > state.filters.dateTo) return;
+      if(!state.filters.classSet.has(r.class1)) return;
+      if(!state.filters.subtypeSet.has(r.subtype)) return;
+      const wild = isWildBird(r);
+      if(state.filters.hideNoGenotype && isMissingValue(r.genotype)){ noGenotypeCount++; return; }
+
+      const colorField = r[state.colorBy] || '(unknown)';
+      const color = colorFor(colorField, state.colorMap);
+      const [jlat, jlon] = jitterPoint(r, i);
+      const marker = makeShapeMarker(jlat, jlon, color, r);
+      const popup = `
+        <b>${wild ? 'Wild bird' : 'Poultry'}</b><br>
+        Date: ${r.dateStr || '—'}<br>
+        Species: ${r.species || '—'}<br>
+        Sample: ${r.sample || '—'}<br>
+        Subtype: ${r.subtype || '—'}<br>
+        Genotype: ${r.genotype || '—'}<br>
+        Institute: ${r.institute || '—'}<br>
+        Lat/Lon: ${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}
+      `;
+      marker.bindPopup(popup);
+      marker.addTo(state.layer);
+      bounds.push([jlat, jlon]);
+      drawn++;
+      wild ? wildCount++ : poultryCount++;
+    });
+  });
+
+  document.getElementById('stats').innerHTML = `
+    <span class="pill">${drawn} points shown</span>
+    <span class="pill gray">${poultryCount} poultry</span>
+    <span class="pill gray">${wildCount} wild bird</span>
+    ${noGenotypeCount ? `<span class="pill gray">${noGenotypeCount} hidden (no genotype)</span>` : ''}
+  `;
+  renderLegend();
+}
+
+function renderLegend(){
+  const box = document.getElementById('legendBox');
+  const labelMap = {class1:'Class', institute:'Institute', species:'Species', subtype:'Subtype', genotype:'Genotype'};
+  let html = `<div style="font-weight:600;margin-bottom:4px">Color: ${labelMap[state.colorBy] || state.colorBy}</div>`;
+  for(const [val, color] of state.colorMap.entries()){
+    html += `<div class="legend-row"><span class="legend-swatch" style="background:${color}"></span>${val}</div>`;
+  }
+  html += `<div style="margin-top:6px;border-top:1px solid var(--border);padding-top:6px">
+      <div class="legend-row"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#888;flex:0 0 auto"></span>Poultry (circle)</div>
+      <div class="legend-row"><span style="display:inline-block;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:11px solid #888;flex:0 0 auto"></span>Wild bird (triangle)</div>
+    </div>`;
+  box.innerHTML = html;
+}
+
+// ============== Wiring ==============
+document.getElementById('loadSample').addEventListener('click', ()=>{
+  handleCSVText(SAMPLE_CSV, 'built-in sample (synthetic)');
+});
+
+csvFile.addEventListener('change', ()=>{
+  const f = csvFile.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = () => handleCSVText(decodeBuffer(reader.result, encSel.value), f.name);
+  reader.onerror = () => setStatus('Failed to read file.', false);
+  reader.readAsArrayBuffer(f);
+});
+
+const dropZone = document.getElementById('dropZone');
+['dragover','dragenter'].forEach(ev => dropZone.addEventListener(ev, e=>{ e.preventDefault(); dropZone.style.background = '#eef2ff'; }));
+['dragleave','drop'].forEach(ev => dropZone.addEventListener(ev, e=>{ e.preventDefault(); dropZone.style.background = '#f8fafc'; }));
+dropZone.addEventListener('drop', e=>{
+  const f = e.dataTransfer.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = () => handleCSVText(decodeBuffer(reader.result, encSel.value), f.name);
+  reader.readAsArrayBuffer(f);
+});
+dropZone.addEventListener('click', ()=>csvFile.click());
+
+document.getElementById('pasteBtn').addEventListener('click', ()=>{
+  const text = document.getElementById('pasteArea').value;
+  if(text.trim()) handleCSVText(text, '(pasted text)');
+});
+
+document.getElementById('dateFrom').addEventListener('change', e=>{ state.filters.dateFrom = e.target.value ? new Date(e.target.value) : null; render(); });
+document.getElementById('dateTo').addEventListener('change', e=>{ state.filters.dateTo = e.target.value ? new Date(e.target.value) : null; render(); });
+document.getElementById('colorBy').addEventListener('change', e=>{ state.colorBy = e.target.value; render(); });
+document.getElementById('hideNoGenotype').addEventListener('change', e=>{ state.filters.hideNoGenotype = e.target.checked; render(); });
+document.getElementById('paletteSelect').addEventListener('change', e=>{ PALETTE = PALETTES[e.target.value] || PALETTES.okabe; render(); });
+
+const markerSize = document.getElementById('markerSize'), markerSizeLbl = document.getElementById('markerSizeLbl');
+markerSize.addEventListener('input', ()=>{ state.markerRadius = parseInt(markerSize.value); markerSizeLbl.textContent = markerSize.value; render(); });
+
+const markerOpacity = document.getElementById('markerOpacity'), markerOpacityLbl = document.getElementById('markerOpacityLbl');
+markerOpacity.addEventListener('input', ()=>{ state.markerOpacity = parseInt(markerOpacity.value)/100; markerOpacityLbl.textContent = markerOpacity.value+'%'; render(); });
+
+const jitterEl = document.getElementById('jitter'), jitterLbl = document.getElementById('jitterLbl');
+jitterEl.addEventListener('input', ()=>{ state.jitterKm = parseInt(jitterEl.value); jitterLbl.textContent = state.jitterKm+' km'; render(); });
+
+document.getElementById('mapFsBtn').addEventListener('click', ()=>{
+  document.body.classList.toggle('map-fullscreen');
+  setTimeout(()=>{ if(state.map) state.map.invalidateSize(); }, 200);
+});
+document.getElementById('mapFitBtn').addEventListener('click', fitToKorea);
+</script>
+</body>
+</html>

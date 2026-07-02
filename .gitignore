@@ -1,0 +1,9 @@
+# Older draft/iteration files - not part of the published publication-map tool
+HPAI_korea_template.html
+HPAI_korea_template_v*.html
+HPAI_korea_template_v12_explanation.txt
+hpai_korea_sample.csv
+hpai_korea_sample_v2.csv
+
+# Local tool config, not part of the project
+.claude/
